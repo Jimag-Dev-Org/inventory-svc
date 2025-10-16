@@ -1,3 +1,14 @@
-node_modules
-dist
+# env & creds
 .env
+.env.*
+*.pem
+*.key
+.aws/
+
+# node/OS
+node_modules/
+dist/
+.next/
+coverage/
+npm-debug.log*
+.DS_Store
