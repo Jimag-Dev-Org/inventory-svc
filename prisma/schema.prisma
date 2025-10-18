@@ -1,0 +1,44 @@
+generator client { 
+    provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Prices stored as integer cents (avoid float bugs)
+model Car {
+  id           String    @id @default(cuid())
+  vin          String    @unique
+  make         String
+  model        String
+  year         Int
+  priceCents   Int
+  mileage      Int
+  color        String?
+  condition    String?
+  description  String?
+  status       CarStatus @default(AVAILABLE)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  images       CarImage[]
+}
+
+enum CarStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+}
+
+model CarImage {
+  id            String @id @default(cuid())
+  car           Car    @relation(fields: [carId], references: [id], onDelete: Cascade)
+  carId         String
+  s3KeyOriginal String
+  s3KeyLg       String?
+  s3KeyMd       String?
+  s3KeySm       String?
+  altText       String?
+  order         Int    @default(0)
+}
