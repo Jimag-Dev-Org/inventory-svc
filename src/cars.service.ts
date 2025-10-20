@@ -107,4 +107,20 @@ export class CarsService {
       },
     });
   }
+  async listImages(carId: string) {
+    return this.prisma.carImage.findMany({
+      where: { carId },
+      orderBy: { order: 'asc' },
+      select: { id: true, s3KeyOriginal: true, altText: true, order: true },
+    });
+  }
+
+  async addImage(carId: string, key: string, altText?: string, order?: number) {
+    // Validate the car exists
+    await this.prisma.car.findUniqueOrThrow({ where: { id: carId }, select: { id: true } });
+    return this.prisma.carImage.create({
+      data: { carId, s3KeyOriginal: key, altText, order: order ?? 0 },
+      select: { id: true, s3KeyOriginal: true, altText: true, order: true }
+    });
+}
 }
