@@ -7,8 +7,12 @@ export class CarsController {
   constructor(private readonly cars: CarsService) {}
 
   @Get()
-  async list(@Query() q: ListCarsQuery) { return this.cars.list(q); }
+  async list(@Query() q: ListCarsQuery) {
+    return this.cars.list(q);
+  }
 
   @Get(':id')
-  async byId(@Param('id') id: string) { return this.cars.get(id); }
+  async byId(@Param('id') id: string) {
+    return this.cars.get(id);
+  }
 }
