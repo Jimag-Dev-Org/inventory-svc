@@ -1,16 +1,54 @@
 name: ci
+
 on:
   pull_request:
   push:
-    branches: [ main, develop ]
+    branches: [ develop, main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
 jobs:
-  build_test:
+  # --- fast parallel checks ---
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: npm }
       - run: npm ci
       - run: npm run lint --if-present
-      - run: npm test --if-present
-      - run: npm run build
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck --if-present   # e.g., "tsc --noEmit"
+
+  unit_tests:
+    runs-on: ubuntu-latest
+    # No DB service yet—only pure unit tests will run. If you have none, this job will no-op.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: npm }
+      - run: npm ci
+      - run: npm test --if-present -- --ci
+
+  # --- build only when checks pass ---
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, unit_tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: npm }
+      - run: npm ci
+      - run: npm run build    # compiles Nest (TS -> dist/)
