@@ -19,7 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: ${{ env.NODE_VERSION }}, cache: npm }
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
       - run: npm ci
       - run: npm run lint --if-present
 
@@ -28,17 +30,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: ${{ env.NODE_VERSION }}, cache: npm }
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
       - run: npm ci
       - run: npm run typecheck --if-present   # e.g., "tsc --noEmit"
 
   unit_tests:
     runs-on: ubuntu-latest
-    # No DB service yet—only pure unit tests will run. If you have none, this job will no-op.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: ${{ env.NODE_VERSION }}, cache: npm }
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
       - run: npm ci
       - run: npm test --if-present -- --ci
 
@@ -49,6 +54,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: ${{ env.NODE_VERSION }}, cache: npm }
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
       - run: npm ci
-      - run: npm run build    # compiles Nest (TS -> dist/)
+      - run: npm run build
