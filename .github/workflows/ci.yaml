@@ -11,6 +11,12 @@ concurrency:
 
 env:
   NODE_VERSION: '20'
+  AWS_REGION: "us-east-1"
+  ECR_REPO: "329551316753.dkr.ecr.us-east-1.amazonaws.com/jimag-dev-inventory-svc"
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   # --- fast parallel checks ---
@@ -59,3 +65,35 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+
+  push-dev:
+    name: Push images to Dev ECR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION \
+            | docker login \
+              --username AWS \
+              --password-stdin $ECR_REPO
+
+      - name: Build Docker image
+        run: |
+          IMAGE_TAG=dev-${{ github.sha }}
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          docker build -t $ECR_REPO:$IMAGE_TAG .
+
+      - name: Push Docker image
+        run: |
+          docker push $ECR_REPO:$IMAGE_TAG
