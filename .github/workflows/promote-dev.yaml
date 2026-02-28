@@ -1,0 +1,100 @@
+name: promote (dev)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to promote from"
+        required: true
+        default: "develop"
+        type: choice
+        options: [develop, main]
+      git_sha:
+        description: "Commit SHA to promote (optional; default = HEAD of branch)"
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPO: 329551316753.dkr.ecr.us-east-1.amazonaws.com/jimag-dev-inventory-svc
+
+  GITOPS_REPO: Jimag-Dev-Org/Jimag-GitOps
+  GITOPS_FILE: apps/inventory-svc/overlays/dev/patch-env.yaml
+  CONTAINER_NAME: inventory-svc
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Resolve SHA
+        id: sha
+        run: |
+          if [ -n "${{ inputs.git_sha }}" ]; then
+            echo "sha=${{ inputs.git_sha }}" >> $GITHUB_OUTPUT
+          else
+            echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$ECR_REPO"
+
+      - name: Build + push image
+        run: |
+          IMAGE_TAG="dev-${{ steps.sha.outputs.sha }}"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+          docker build -t "$ECR_REPO:$IMAGE_TAG" .
+          docker push "$ECR_REPO:$IMAGE_TAG"
+          echo "Pushed: $ECR_REPO:$IMAGE_TAG"
+
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+
+      - name: Update GitOps image (patch-env.yaml)
+        working-directory: gitops
+        run: |
+          sudo apt-get update && sudo apt-get install -y yq
+          NEW_IMAGE="${ECR_REPO}:${IMAGE_TAG}"
+          FILE="${GITOPS_FILE}"
+
+          yq -i '.spec.template.spec.containers[] |=
+            (select(.name == strenv(CONTAINER_NAME)) .image = strenv(NEW_IMAGE))' "$FILE"
+
+          echo "Updated $FILE to $NEW_IMAGE"
+          grep -n "image:" "$FILE" || true
+
+      - name: Create PR to GitOps
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+          commit-message: "chore(dev): bump inventory-svc to ${{ env.IMAGE_TAG }}"
+          branch: "image-bump/inventory-${{ steps.sha.outputs.sha }}"
+          title: "chore(dev): bump inventory-svc to ${{ env.IMAGE_TAG }}"
+          body: |
+            Manual promote run from inventory-svc repo.
+
+            Image: `${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}`
+
+            Review Trivy scan output in the CI workflow logs for this commit before merging.
