@@ -6,9 +6,11 @@ on:
       branch:
         description: "Branch to promote from"
         required: true
-        default: "develop"
+        default: develop
         type: choice
-        options: [develop, main]
+        options:
+          - develop
+          - main
       git_sha:
         description: "Commit SHA to promote (optional; default = HEAD of branch)"
         required: false
@@ -22,8 +24,8 @@ env:
   ECR_REPO: 329551316753.dkr.ecr.us-east-1.amazonaws.com/jimag-dev-inventory-svc
 
   GITOPS_REPO: Jimag-Dev-Org/Jimag-GitOps
-  GITOPS_FILE: apps/inventory-svc/overlays/dev/patch-env.yaml
-  CONTAINER_NAME: inventory-svc
+  GITOPS_KUSTOMIZATION: apps/inventory-svc/overlays/dev/kustomization.yaml
+  KUSTOMIZE_IMAGE_NAME: 329551316753.dkr.ecr.us-east-1.amazonaws.com/jimag-dev-inventory-svc
 
 jobs:
   promote:
@@ -39,9 +41,9 @@ jobs:
         id: sha
         run: |
           if [ -n "${{ inputs.git_sha }}" ]; then
-            echo "sha=${{ inputs.git_sha }}" >> $GITHUB_OUTPUT
+            echo "sha=${{ inputs.git_sha }}" >> "$GITHUB_OUTPUT"
           else
-            echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Configure AWS credentials (OIDC)
@@ -58,7 +60,7 @@ jobs:
       - name: Build + push image
         run: |
           IMAGE_TAG="dev-${{ steps.sha.outputs.sha }}"
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
           docker build -t "$ECR_REPO:$IMAGE_TAG" .
           docker push "$ECR_REPO:$IMAGE_TAG"
@@ -71,18 +73,23 @@ jobs:
           token: ${{ secrets.GITOPS_PAT }}
           path: gitops
 
-      - name: Update GitOps image (patch-env.yaml)
+      - name: Update GitOps kustomization.yaml (newTag only)
         working-directory: gitops
         run: |
-          sudo apt-get update && sudo apt-get install -y yq
-          NEW_IMAGE="${ECR_REPO}:${IMAGE_TAG}"
-          FILE="${GITOPS_FILE}"
+          
+          YQ_VERSION=v4.44.3
+          sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
 
-          yq -y -i '.spec.template.spec.containers[] |=
-            (select(.name == strenv(CONTAINER_NAME)) .image = strenv(NEW_IMAGE))' "$FILE"
+          FILE="${GITOPS_KUSTOMIZATION}"
+          NEW_TAG="${IMAGE_TAG}"
 
-          echo "Updated $FILE to $NEW_IMAGE"
-          grep -n "image:" "$FILE" || true
+          yq -i '
+            (.images[] | select(.name == env(KUSTOMIZE_IMAGE_NAME))).newTag = env(NEW_TAG)
+          ' "$FILE"
+
+          echo "Updated $FILE newTag -> $NEW_TAG"
+          cat "$FILE"
 
       - name: Create PR to GitOps
         uses: peter-evans/create-pull-request@v6
@@ -97,4 +104,4 @@ jobs:
 
             Image: `${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}`
 
-            Review Trivy scan output in the CI workflow logs for this commit before merging.
+            This PR updates only `kustomization.yaml` (single source of truth for image tag).
