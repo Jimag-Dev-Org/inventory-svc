@@ -82,13 +82,12 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
 
           FILE="${GITOPS_KUSTOMIZATION}"
-          NEW_TAG="${IMAGE_TAG}"
 
           yq -i '
-            (.images[] | select(.name == env(KUSTOMIZE_IMAGE_NAME))).newTag = env(NEW_TAG)
+            (.images[] | select(.name == env(KUSTOMIZE_IMAGE_NAME))).newTag = env(IMAGE_TAG)
           ' "$FILE"
 
-          echo "Updated $FILE newTag -> $NEW_TAG"
+          echo "Updated $FILE newTag -> $IMAGE_TAG"
           cat "$FILE"
 
       - name: Create PR to GitOps
