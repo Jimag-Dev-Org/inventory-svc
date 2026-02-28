@@ -78,7 +78,7 @@ jobs:
           NEW_IMAGE="${ECR_REPO}:${IMAGE_TAG}"
           FILE="${GITOPS_FILE}"
 
-          yq -i '.spec.template.spec.containers[] |=
+          yq -y -i '.spec.template.spec.containers[] |=
             (select(.name == strenv(CONTAINER_NAME)) .image = strenv(NEW_IMAGE))' "$FILE"
 
           echo "Updated $FILE to $NEW_IMAGE"
