@@ -75,4 +75,4 @@ jobs:
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           ignore-unfixed: true
           vuln-type: os,library
-          exit-code: "0". # Do not fail build on vulnerabilities; we just want the report here
+          exit-code: "0"  # Do not fail build on vulnerabilities; we just want the report here
